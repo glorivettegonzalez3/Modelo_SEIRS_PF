@@ -1,0 +1,701 @@
+## Modelo SEIRS
+
+### Sistema de Ecuaciones Diferenciales en una Función R
+
+Función en R en la cual están incluidos: tiempo, $t$ (cuando hay estacionalidad), vector de las variables de estado ($S,E, I, R$), los parámetros del modelo ($\alpha, \beta, \gamma, \mu, N, \omega, \sigma$).  
+
+```{r funcion}
+seirsmod=function(t, y, parms){
+   #Pull state variables from y vector
+   S=y[1]
+   E=y[2]
+   I=y[3]
+   R=y[4]
+   #Pull parameter values from parms vector
+   alpha= parms["alpha"]
+   beta=parms["beta"]
+   gamma=parms["gamma"]
+   mu= parms["mu"]
+   N=parms["N"]
+   ome= parms["ome"]
+   sigma= parms["sigma"]
+   #Define equations
+   dS = mu * N - beta * S * I / N + ome * R - mu * S
+   dE = beta * S * I / N - sigma * E - mu * E
+   dI = sigma * E - gamma * I - (mu + alpha) * I
+   dR = gamma * I - ome * R - mu * R
+   res=c(dS, dE, dI, dR)
+   #Return list of gradients
+   list(res)
+ }
+```
+
+### Parámetros del Modelo y Condiciones Iniciales  
+
+```{r parametros}
+ times  = seq(0, 300, by=1)
+ parms  = c(alpha = 0, beta = 0.21, gamma = 0.07, mu = 0.000003, N = 1, 
+            ome = 0.003, sigma = 0.14)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+```
+
+### Aplicación de la función ode para obtener los valores de las variables de estado  
+
+```{r ode}
+library(deSolve)
+out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+```
+
+### Rearreglo de los resultados para gráficas y otros análisis
+
+```{r tidy, message=FALSE, warning=FALSE}
+library(tidyverse)
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+```
+
+### Gráfica de las variables de estado  
+
+```{r grafica}
+library(ggplot2)
+ggplot(data = new.out, 
+       aes(x = time, 
+           y = value, 
+           group = key, 
+           col = key)) + 
+       ylab("Proporción de N") + 
+       xlab("Tiempo (días)") +
+       geom_line(size = 1) + 
+       scale_colour_manual(values = c("red", "green4","blue", "gold"),
+                           name = "Grupo") +
+       scale_y_continuous(labels = waiver(), limits = c(0, 1))
+```
+
+### Cálculo del valor máximo de infectados, cuando ocurren y el valor umbral de S  
+
+```{r imax}
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+### _Examinar los resultados al cambiar los parámetros y valores iniciales y relacionarlos a escenarios epidemiológicos hipotéticos._  
+
+* Cambiar el valor de S: ¿qué ocurre cuando se disminuye? ¿cuándo tiene un valor menor del S umbral?  
+
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+parms  = c(N = 1, beta = 0.21, gamma = 0.07, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+start = c(S = 0.799, E = 0.001, I = 0, R = 0.2)
+ 
+#ode
+out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out %>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+* Aumentar beta (duplicar valor inicial) 
+
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.42, gamma = 0.07, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+* Disminuir beta  
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.11, gamma = 0.07, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+* Aumentar gamma (duplicar) 
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.21, gamma = 0.14, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+* Disminuir gamma
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.21, gamma = 0.03, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+* Aumentar sigma (duplicar) 
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.21, gamma = 0.07, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.28)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+* Disminuir sigma 
+```{r}
+#parametros 
+times  = seq(0, 300, by=1)
+ parms  = c(N = 1, beta = 0.21, gamma = 0.07, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.07)
+ start = c(S = 0.999, E = 0.001, I = 0, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+### _Análisis de varias enfermedades infecciosas a partir de datos de la literatura epidemiológica._
+A partir de los datos de las siguientes tablas (período infeccioso, período de latencia y $R_0$), realizar el análisis de una enfermedad infecciosa usando el modelo SEIRS.  
+
+![](https://image.slidesharecdn.com/r0herdimmunity-170914092413/95/r0-value-herd-immunity-5-638.jpg?cb=1505424263)
+
+![](https://image.slidesharecdn.com/r0herdimmunity-170914092413/95/r0-value-herd-immunity-6-638.jpg?cb=1505424263)
+
+```{r}
+#Influenza
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 1.5, gamma = 0.5, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.5)
+ start = c(S = 0.997, E = 0.002, I = 0.001, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+```{r}
+#Influenza con "vacunación"
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 1.5, gamma = 0.5, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.5)
+ start = c(S = 0.497, E = 0.002, I = 0.001, R = 0.496)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+```{r}
+#Viruela
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 2.1, gamma = 1/2.5, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 1/9.5)
+ start = c(S = 0.997, E = 0.002, I = 0.001, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+```{r}
+#Viruela con vacunación
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 2.1, gamma = 1/2.5, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 1/9.5)
+ start = c(S = 0.497, E = 0.002, I = 0.001, R = 0.496)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+
+```{r}
+#COVID-19
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 1, gamma = 0.20, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.997, E = 0.002, I = 0.001, R = 0)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
+```{r}
+#COVID-19 con vacunación
+#parametros 
+times  = seq(0, 200, by=1)
+ parms  = c(N = 1, beta = 1, gamma = 0.20, mu = 0.000003, ome = 0.003, 
+            alpha = 0, sigma = 0.14)
+ start = c(S = 0.497, E = 0.002, I = 0.001, R = 0.496)
+ 
+#ode
+ out = ode(y = start, times = times, func = seirsmod, 
+     parms = parms)
+out=as.data.frame(out)
+head(round(out, 3))
+
+#rearreglo
+new.out <- as.data.frame(out) %>% gather(key, value, -time) 
+head(new.out)
+
+#Grafica
+ggplot(data = new.out, 
+       aes(x = time,
+           y = value,
+           group = key,
+           col = key
+           )) + 
+      ylab("Proporción de N") + xlab("Tiempo (días)") +
+      geom_line(size = 1) + 
+      scale_colour_manual(values = c("red", "green4", "blue", "gold"), name = "Grupo") +
+      scale_y_continuous(labels = waiver(), limits = c(0, 1))
+
+# valor máximo de I y tiempo usando un pipe
+new.out %>% 
+  filter(key=="I") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxI = round(value, 2)) %>%
+  select(time, maxI)
+# valor máximo de E y tiempo usando un pipe
+new.out%>% 
+  filter(key=="E") %>% 
+  filter(value==max(value)) %>% 
+  mutate(maxE = round(value, 2)) %>%
+  select(time, maxE)
+# valor de S_umbral
+out$S[which.max(out$I)]
+```
